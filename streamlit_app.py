@@ -18,7 +18,7 @@ TREBLE_START_HZ = 5000
 Q_MIN, Q_MAX = 0.2, 3.0
 REF_FREQ_HZ = 630
 
-# Your existing helper functions
+# Helper functions
 def peak_eq(f, fc, gain_db, Q):
     return gain_db / (1 + ((np.log2(f / fc))**2) / Q**2)
 
