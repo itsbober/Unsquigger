@@ -109,10 +109,7 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     # Mask out resonance regions based on rig type
     if rig_type == "5128":
         # For 5128, handle rocking mode differently
-        resonance_regions = [
-            (7500, 8500),    # 8k resonance
-            (15500, 17500)   # 16-17k resonance
-        ]
+        resonance_regions = []
         
         # Create separate mask for rocking mode region
         rocking_mode_region = (freq >= 100) & (freq <= 450)
