@@ -27,22 +27,31 @@ def high_shelf(f, fc, gain_db, Q):
 
 def load_txt(uploaded_file):
     try:
-        # Read the file with pandas
-        df = pd.read_csv(uploaded_file, sep="\t", header=None, names=["freq", "value"])
+        # Read all lines from the file
+        if isinstance(uploaded_file, str):
+            lines = uploaded_file.splitlines()
+        else:
+            lines = uploaded_file.getvalue().decode('utf-8').splitlines()
         
-        # Ensure the data is numeric and handle any non-numeric values
-        df["freq"] = pd.to_numeric(df["freq"], errors='coerce')
-        df["value"] = pd.to_numeric(df["value"], errors='coerce')
+        # Filter out comment lines and empty lines
+        data_lines = [line for line in lines if line.strip() and not line.strip().startswith('*')]
+        
+        # Create DataFrame from the filtered lines
+        df = pd.DataFrame([line.split() for line in data_lines], columns=['freq', 'value'])
+        
+        # Convert to numeric values
+        df['freq'] = pd.to_numeric(df['freq'], errors='coerce')
+        df['value'] = pd.to_numeric(df['value'], errors='coerce')
         
         # Remove any rows with NaN values
         df = df.dropna()
         
         # Sort by frequency
-        df = df.sort_values(by="freq")
+        df = df.sort_values(by='freq')
         
         # Convert to numpy arrays
-        freq_array = df["freq"].to_numpy()
-        value_array = df["value"].to_numpy()
+        freq_array = df['freq'].to_numpy()
+        value_array = df['value'].to_numpy()
         
         if len(freq_array) == 0 or len(value_array) == 0:
             raise ValueError("Empty data after processing")
