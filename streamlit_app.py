@@ -18,7 +18,7 @@ TREBLE_START_HZ = 5000
 Q_MIN, Q_MAX = 0.2, 3.0
 REF_FREQ_HZ = 630
 
-# Helper functions
+# Your existing helper functions
 def peak_eq(f, fc, gain_db, Q):
     return gain_db / (1 + ((np.log2(f / fc))**2) / Q**2)
 
@@ -170,12 +170,9 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     # Generate target by applying filters to baseline
     target = baseline + apply_filters(freq, filters)
 
-    # Save target data
-    output_path = os.path.join(BASE_DIR, 'output', 'fitted_target.txt')
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    pd.DataFrame({"Frequency (Hz)": freq, "Target (dB)": target}).to_csv(output_path, sep="\t", index=False)
-
+    # Remove the file saving part since we're handling the download in the Streamlit UI
     return filters, freq, target, meas, baseline
+
 # Streamlit UI
 st.title("IEM Target Generator")
 
