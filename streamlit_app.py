@@ -71,6 +71,11 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     # Normalize measurement to baseline at reference frequency
     ref_diff = meas_ref - baseline_ref
     meas_aligned = meas - ref_diff  # Align measurement to baseline
+
+    # Add debug prints
+    print(f"Measurement frequency range: {meas_freq.min()} - {meas_freq.max()}")
+    print(f"Measurement value range: {meas_val.min()} - {meas_val.max()}")
+    print(f"Interpolated measurement range: {meas.min()} - {meas.max()}")
     
     # Create resonance mask
     resonance_mask = np.ones_like(freq, dtype=bool)
