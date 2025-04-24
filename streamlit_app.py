@@ -29,17 +29,32 @@ def load_txt(uploaded_file):
     try:
         # Read all lines from the file
         if isinstance(uploaded_file, str):
-            # Handle string input (baseline data)
             lines = uploaded_file.splitlines()
         else:
-            # Handle uploaded file
-            lines = uploaded_file.read().decode('utf-8').splitlines()
-        
-        # Filter out comment lines and empty lines
-        data_lines = [line for line in lines if line.strip() and not line.strip().startswith('*')]
-        
-        # Create DataFrame from the filtered lines
-        df = pd.DataFrame([line.split() for line in data_lines], columns=['freq', 'value'])
+            content = uploaded_file.read()
+            if isinstance(content, bytes):
+                lines = content.decode('utf-8').splitlines()
+            else:
+                lines = content.splitlines()
+
+        # Find where the actual data starts (after "Freq(Hz) SPL(dB)" for REW files)
+        start_idx = 0
+        for i, line in enumerate(lines):
+            if "Freq(Hz) SPL(dB)" in line:
+                start_idx = i + 1
+                break
+
+        # Get only the data lines
+        data_lines = []
+        for line in lines[start_idx:]:
+            if line.strip() and not line.strip().startswith('*'):
+                # Split on whitespace and take first two columns
+                values = line.strip().split()[:2]
+                if len(values) == 2:  # Ensure we have both frequency and SPL values
+                    data_lines.append(values)
+
+        # Create DataFrame
+        df = pd.DataFrame(data_lines, columns=['freq', 'value'])
         
         # Convert to numeric values
         df['freq'] = pd.to_numeric(df['freq'], errors='coerce')
