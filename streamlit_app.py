@@ -29,9 +29,11 @@ def load_txt(uploaded_file):
     try:
         # Read all lines from the file
         if isinstance(uploaded_file, str):
+            # Handle string input (baseline data)
             lines = uploaded_file.splitlines()
         else:
-            lines = uploaded_file.getvalue().decode('utf-8').splitlines()
+            # Handle uploaded file
+            lines = uploaded_file.read().decode('utf-8').splitlines()
         
         # Filter out comment lines and empty lines
         data_lines = [line for line in lines if line.strip() and not line.strip().startswith('*')]
