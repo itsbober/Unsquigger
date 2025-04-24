@@ -4,3 +4,4 @@ matplotlib==3.7.1
 scipy==1.10.1
 pandas==2.0.3
 Werkzeug==3.0.1
+streamlit==1.29.0
