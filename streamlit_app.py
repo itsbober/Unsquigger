@@ -179,7 +179,7 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
         (20, 100), (-30, 30), (Q_MIN, Q_MAX),     # Bass peak
         (20, 200), (-30, 30), (Q_MIN, Q_MAX),     # Bass shelf
         (1000, 2000), (-2, 2), (0.2, 3),        # Pinna peak 1
-        (2000, 3000), (-3, 3), (0.2, 3),        # Pinna peak 2
+        (2000, 3000), (-5, 5), (0.2, 3),        # Pinna peak 2
         (4500, 20000), (-4, 4), (Q_MIN, Q_MAX)    # Treble shelf
     ]
 
