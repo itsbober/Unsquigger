@@ -9,6 +9,8 @@ from scipy.optimize import minimize
 from scipy.signal import savgol_filter
 import pandas as pd
 from baseline_targets import JM1_5128, JM1_711_DELTA
+from dataclasses import dataclass, asdict
+import json
 
 # Set page config
 st.set_page_config(page_title="IEM Target Generator", layout="wide")
@@ -18,7 +20,14 @@ TREBLE_START_HZ = 5000
 Q_MIN, Q_MAX = 0.2, 3.0
 REF_FREQ_HZ = 630
 
-# Your existing helper functions
+@dataclass
+class EQFilter:
+    type: str
+    fc: float
+    gain: float
+    Q: float
+
+# Helper functions
 def peak_eq(f, fc, gain_db, Q):
     return gain_db / (1 + ((np.log2(f / fc))**2) / Q**2)
 
@@ -77,6 +86,15 @@ def load_txt(uploaded_file):
     except Exception as e:
         st.error(f"Error loading file: {str(e)}")
         return None, None
+    
+def apply_filters(freq, filters):
+    total = np.zeros_like(freq)
+    for f in filters:
+        if f['type'] == 'peak':
+            total += peak_eq(freq, f['fc'], f['gain'], f['Q'])
+        elif f['type'] == 'shelf':
+            total += high_shelf(freq, f['fc'], f['gain'], f['Q'])
+    return total
 
 def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     # Create frequency points for interpolation
@@ -98,11 +116,6 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     ref_diff = meas_ref - baseline_ref
     meas_aligned = meas - ref_diff  # Align measurement to baseline
 
-    # Add debug prints
-    print(f"Measurement frequency range: {meas_freq.min()} - {meas_freq.max()}")
-    print(f"Measurement value range: {meas_val.min()} - {meas_val.max()}")
-    print(f"Interpolated measurement range: {meas.min()} - {meas.max()}")
-    
     # Create resonance mask
     resonance_mask = np.ones_like(freq, dtype=bool)
     
@@ -198,17 +211,199 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     # Generate target by applying filters to baseline
     target = baseline + apply_filters(freq, filters)
 
-    # Remove the file saving part since we're handling the download in the Streamlit UI
     return filters, freq, target, meas_aligned, baseline
+
+def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type):
+    st.header("Dynamic EQ Filter Adjustment")
+    
+    # Create columns for each filter
+    cols = st.columns(len(filters))
+    
+    adjusted_filters = []
+    for i, (col, filt) in enumerate(zip(cols, filters)):
+        with col:
+            st.subheader(f"Filter {i+1}")
+            filter_type = st.selectbox(f"Type {i+1}", 
+                                       ["peak", "shelf"], 
+                                       index=0 if filt['type'] == 'peak' else 1,
+                                       key=f"type_{i}")
+            
+            fc = st.number_input(f"Frequency {i+1} (Hz)", 
+                                 min_value=20.0, 
+                                 max_value=20000.0, 
+                                 value=filt['fc'],
+                                 key=f"fc_{i}")
+            
+            gain = st.number_input(f"Gain {i+1} (dB)", 
+                                   min_value=-30.0, 
+                                   max_value=30.0, 
+                                   value=filt['gain'],
+                                   key=f"gain_{i}")
+            
+            q = st.number_input(f"Q {i+1}", 
+                                min_value=0.2, 
+                                max_value=3.0, 
+                                value=filt['Q'],
+                                step=0.1,
+                                key=f"Q_{i}")
+            
+            adjusted_filters.append({
+                'type': filter_type,
+                'fc': fc,
+                'gain': gain,
+                'Q': q
+            })
+    
+    # Additional baselines for cross-rig application
+    additional_targets = {}
+    
+    if rig_type == "5128":
+        # Load 711 baseline for cross-application
+        with io.StringIO(JM1_711_DELTA) as f:
+            jm1_711_freq, jm1_711_val = load_txt(f)
+        
+        if jm1_711_freq is not None:
+            # Interpolate 711 baseline to match frequency points
+            interp_711 = interp1d(jm1_711_freq, jm1_711_val, kind='linear', fill_value='extrapolate')
+            baseline_711 = interp_711(freq)
+            
+            additional_targets['711'] = baseline_711
+    
+    # Create a placeholder for dynamic plots
+    plot_placeholder = st.empty()
+    
+    # Find reference values at 630 Hz
+    ref_idx = np.abs(freq - REF_FREQ_HZ).argmin()
+    baseline_ref = baseline[ref_idx]
+    meas_ref = meas[ref_idx]
+    
+    # Reapply the filters to original baseline
+    adjusted_target = baseline + apply_filters(freq, adjusted_filters)
+    
+    # Find the new reference value at 630 Hz for the adjusted target
+    adjusted_ref = adjusted_target[ref_idx]
+    
+    # Normalize all curves to their respective 630 Hz reference points
+    normalized_meas = meas - meas_ref
+    normalized_baseline = baseline - baseline_ref
+    normalized_adjusted_target = adjusted_target - adjusted_ref
+    
+    # Create two subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12))
+    
+    # First plot: Original Rig Target
+    ax1.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement")
+    ax1.semilogx(freq, normalized_baseline, color='#AAAAAA', linestyle='--', linewidth=2, label=f"JM-1 DF {rig_type} Baseline")
+    ax1.semilogx(freq, normalized_adjusted_target, color='#000000', linewidth=2.5, label="Adjusted JM-1 Target")
+    
+    # Set plot properties for first plot
+    ax1.set_title(f"Adjusted {rig_type} Target (Normalized at {REF_FREQ_HZ} Hz)", fontweight='bold')
+    ax1.set_xlabel("Frequency (Hz)")
+    ax1.set_ylabel("Relative Amplitude (dB)")
+    ax1.grid(True, which="both", linestyle='--', color='#E0E0E0', alpha=0.7)
+    ax1.legend(frameon=False)
+    ax1.set_xlim(20, 20000)
+    ax1.set_xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000])
+    ax1.set_xticklabels(['20', '50', '100', '200', '500', '1k', '2k', '5k', '10k', '20k'])
+    ax1.set_ylim(-20, 20)
+    
+    # Second plot: Cross-Rig Targets
+    for rig, target in additional_targets.items():
+        # Normalize cross-rig target
+        cross_target = target + apply_filters(freq, adjusted_filters)
+        
+        # Find reference values at 630 Hz for both original and filtered targets
+        cross_ref = target[ref_idx]
+        filtered_cross_ref = cross_target[ref_idx]
+        
+        # Normalize both original and filtered cross-rig targets
+        normalized_original_cross = target - cross_ref
+        normalized_cross_target = cross_target - filtered_cross_ref
+        
+        # Plot cross-rig curves
+        ax2.semilogx(freq, normalized_original_cross, color='#AAAAAA', linestyle='--', linewidth=2, label=f"JM-1 DF {rig} Baseline")
+        ax2.semilogx(freq, normalized_cross_target, color='#000000', linewidth=2.5, label=f"Adjusted JM-1 {rig} Target")
+        
+        # Set plot properties for second plot
+        ax2.set_title(f"Filters Applied to {rig} Baseline (Normalized at {REF_FREQ_HZ} Hz)", fontweight='bold')
+        ax2.set_xlabel("Frequency (Hz)")
+        ax2.set_ylabel("Relative Amplitude (dB)")
+        ax2.grid(True, which="both", linestyle='--', color='#E0E0E0', alpha=0.7)
+        ax2.legend(frameon=False)
+        ax2.set_xlim(20, 20000)
+        ax2.set_xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000])
+        ax2.set_xticklabels(['20', '50', '100', '200', '500', '1k', '2k', '5k', '10k', '20k'])
+        ax2.set_ylim(-20, 20)
+    
+    # Adjust layout
+    plt.tight_layout()
+    
+    # Display the plot
+    plot_placeholder.pyplot(fig)
+    
+    # Export options
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # Export Filters
+        if st.download_button(
+            label="Export EQ Filters",
+            data=json.dumps([EQFilter(**f) for f in adjusted_filters], 
+                            default=lambda o: asdict(o), 
+                            indent=2),
+            file_name="eq_filters.json",
+            mime="application/json"
+        ):
+            st.success("EQ Filters exported!")
+    
+    with col2:
+        # Export Original Target
+        target_df = pd.DataFrame({"Frequency (Hz)": freq, "Target (dB)": adjusted_target})
+        csv = target_df.to_csv(sep='\t', index=False)
+        if st.download_button(
+            label=f"Export {rig_type} Target",
+            data=csv,
+            file_name=f"{rig_type}_adjusted_target.txt",
+            mime="text/tab-separated-values"
+        ):
+            st.success(f"{rig_type} Target exported!")
+    
+    with col3:
+        # Export Cross-Rig Targets
+        for rig, target in additional_targets.items():
+            cross_target = target + apply_filters(freq, adjusted_filters)
+            cross_df = pd.DataFrame({"Frequency (Hz)": freq, "Target (dB)": cross_target})
+            cross_csv = cross_df.to_csv(sep='\t', index=False)
+            if st.download_button(
+                label=f"Export {rig} Target",
+                data=cross_csv,
+                file_name=f"{rig}_adjusted_target.txt",
+                mime="text/tab-separated-values"
+            ):
+                st.success(f"{rig} Target exported!")
+    
+    return adjusted_filters
 
 # Streamlit UI
 st.title("IEM Target Generator")
 
 # Sidebar for inputs
 with st.sidebar:
-    st.header("Settings")
+    st.header("Trace Your Graph")
+    
+    # Add a button to link to the measurement tracer
+    st.markdown("""
+    <a href="https://usyless.uk/trace/" target="_blank">
+        <button style="width:100%; padding:10px; background-color:#4CAF50; color:white; border:none; border-radius:5px;">
+            UsyTrace
+        </button>
+    </a>
+    """, unsafe_allow_html=True)
+    
+    st.divider()  # Optional: adds a visual separator
+    
     rig_type = st.selectbox("Select Rig Type", ["5128", "711"])
-    uploaded_file = st.file_uploader("Upload Measurement File", type=['txt'])
+    uploaded_file = st.file_uploader("Upload Measurement Text File", type=['txt'])
 
 # Main content
 if uploaded_file is not None:
@@ -264,18 +459,21 @@ if uploaded_file is not None:
             # Display plot
             st.pyplot(fig)
             
-            # Create download button for target data
+            # Dynamic EQ Adjustment
+            adjusted_filters = dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type)
+            
+            # Create download button for original target data
             target_df = pd.DataFrame({"Frequency (Hz)": freq, "Target (dB)": target})
             csv = target_df.to_csv(sep='\t', index=False)
             st.download_button(
-                label="Download Target Data",
+                label="Download Original Target Data",
                 data=csv,
                 file_name="fitted_target.txt",
                 mime="text/tab-separated-values"
             )
             
-            # Display filter parameters
-            st.header("Filter Parameters")
+            # Display original filter parameters
+            st.header("Original Filter Parameters")
             for f in filters:
                 st.write(f"Type: {f['type']}, Frequency: {f['fc']:.1f} Hz, Gain: {f['gain']:.1f} dB, Q: {f['Q']:.2f}")
 
