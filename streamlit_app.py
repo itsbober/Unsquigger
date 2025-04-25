@@ -199,7 +199,7 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     target = baseline + apply_filters(freq, filters)
 
     # Remove the file saving part since we're handling the download in the Streamlit UI
-    return filters, freq, target, meas, baseline
+    return filters, freq, target, meas_aligned, baseline
 
 # Streamlit UI
 st.title("IEM Target Generator")
