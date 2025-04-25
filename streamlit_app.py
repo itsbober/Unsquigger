@@ -18,7 +18,7 @@ TREBLE_START_HZ = 5000
 Q_MIN, Q_MAX = 0.2, 3.0
 REF_FREQ_HZ = 630
 
-# Your existing helper functions
+# Helper functions
 def peak_eq(f, fc, gain_db, Q):
     return gain_db / (1 + ((np.log2(f / fc))**2) / Q**2)
 
@@ -176,11 +176,11 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     ]
 
     bounds = [
-        (20, 100), (-30, 30), (Q_MIN, Q_MAX),     # Bass peak
-        (20, 200), (-30, 30), (Q_MIN, Q_MAX),     # Bass shelf
+        (20, 100), (-6, 6), (Q_MIN, Q_MAX),     # Bass peak
+        (20, 200), (-15, 15), (0.5, 1),     # Bass shelf
         (1000, 2000), (-5, 5), (0.2, 3),        # Pinna peak 1
         (2000, 3000), (-5, 5), (0.2, 3),        # Pinna peak 2
-        (4500, 20000), (-8, 8), (Q_MIN, Q_MAX)    # Treble shelf
+        (4500, 20000), (-8, 8), (Q_MIN, 1)    # Treble shelf
     ]
 
     # Optimize filters
@@ -207,6 +207,18 @@ st.title("IEM Target Generator")
 # Sidebar for inputs
 with st.sidebar:
     st.header("Settings")
+    
+    # Add a button to link to the measurement tracer
+    st.markdown("""
+    <a href="https://usyless.uk/trace/" target="_blank">
+        <button style="width:100%; padding:10px; background-color:#4CAF50; color:white; border:none; border-radius:5px;">
+            Trace your measurement!
+        </button>
+    </a>
+    """, unsafe_allow_html=True)
+    
+    st.divider()  # Optional: adds a visual separator
+    
     rig_type = st.selectbox("Select Rig Type", ["5128", "711"])
     uploaded_file = st.file_uploader("Upload Measurement File", type=['txt'])
 
