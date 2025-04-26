@@ -306,6 +306,8 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type):
         ax1.legend(frameon=False)
         ax1.set_xlim(20, 20000)
         ax1.set_ylim(-20, 20)
+        ax1.set_xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000])
+        ax1.set_xticklabels(['20', '50', '100', '200', '500', '1k', '2k', '5k', '10k', '20k'])
         
         # Second plot: Cross-Rig Targets
         for rig, target in additional_targets.items():
@@ -332,6 +334,8 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type):
             ax2.legend(frameon=False)
             ax2.set_xlim(20, 20000)
             ax2.set_ylim(-20, 20)
+            ax2.set_xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000])
+            ax2.set_xticklabels(['20', '50', '100', '200', '500', '1k', '2k', '5k', '10k', '20k'])
         
         # Adjust layout
         plt.tight_layout()
@@ -352,6 +356,8 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type):
         ax.legend(frameon=False)
         ax.set_xlim(20, 20000)
         ax.set_ylim(-20, 20)
+        ax.set_xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000])
+        ax.set_xticklabels(['20', '50', '100', '200', '500', '1k', '2k', '5k', '10k', '20k'])
         
         # Adjust layout
         plt.tight_layout()
