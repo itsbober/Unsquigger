@@ -1,3 +1,3 @@
-# IEM-Target-Generator
+# Unsquigger
 
-An IEM target generator based on your measurements! Supports both B&K Type 5128 and IEC 711 measurements, still a bit scuffed right now though.
+Essentially a tool to convert your measurements into HRTF targets. Currently meant only for IEMs with JM-1 DF and raw DF as baseline targets.
