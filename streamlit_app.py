@@ -14,7 +14,7 @@ from dataclasses import dataclass, asdict
 import json
 
 # Set page config
-st.set_page_config(page_title="IEM Target Generator", layout="wide")
+st.set_page_config(page_title="Unsquigger", layout="wide")
 
 # Constants
 TREBLE_START_HZ = 5000
@@ -461,7 +461,7 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
     return adjusted_filters
 
 # Streamlit UI
-st.title("IEM Target Generator")
+st.title("Unsquigger")
 
 # Sidebar for inputs
 with st.sidebar:
