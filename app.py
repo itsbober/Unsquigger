@@ -8,7 +8,6 @@ from scipy.interpolate import interp1d
 from scipy.optimize import minimize
 from scipy.signal import savgol_filter
 import pandas as pd
-# Update import to include Diffuse Field targets
 from baseline_targets import JM1_5128, JM1_711_DELTA, DF_5128, DF_711_DELTA
 from dataclasses import dataclass, asdict
 import json
