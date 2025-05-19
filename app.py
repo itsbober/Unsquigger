@@ -194,10 +194,11 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     bounds = [
         (20, 20), (-30, 30), (0.2, 3),     # Bass peak 1
         (20, 500), (-30, 30), (0.2, 3),     # Low shelf
-        (1000, 2000), (-30, 30), (.5, 3),          # Pinna peak 1
+        (1250, 2000), (-30, 30), (.5, 3),          # Pinna peak 1
         (2000, 4000), (-30, 30), (.5, 3),          # Pinna peak 2
-        (4000, 20000), (-30, 30), (0.2, 1.5)    # Treble shelf
+        (4500, 20000), (-30, 30), (0.2, 1)    # Treble shelf
     ]
+
     # Optimize filters
     result = minimize(loss, initial_filters, bounds=bounds, method="L-BFGS-B")
 
