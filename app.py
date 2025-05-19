@@ -17,7 +17,6 @@ st.set_page_config(page_title="Unsquigger", layout="wide")
 
 # Constants
 TREBLE_START_HZ = 5000
-Q_MIN, Q_MAX = 0.2, 3.0
 REF_FREQ_HZ = 630
 
 @dataclass
@@ -36,7 +35,6 @@ def high_shelf(f, fc, gain_db, Q):
 
 def load_txt(uploaded_file):
     try:
-        # Read all lines from the file
         if isinstance(uploaded_file, str):
             lines = uploaded_file.splitlines()
         else:
@@ -46,47 +44,52 @@ def load_txt(uploaded_file):
             else:
                 lines = content.splitlines()
 
-        # Find where the actual data starts (after "Freq(Hz) SPL(dB)" for REW files)
         start_idx = 0
         for i, line in enumerate(lines):
             if "Freq(Hz) SPL(dB)" in line:
                 start_idx = i + 1
                 break
 
-        # Get only the data lines
         data_lines = []
         for line in lines[start_idx:]:
             if line.strip() and not line.strip().startswith('*'):
-                # Split on whitespace and take first two columns
                 values = line.strip().split()[:2]
-                if len(values) == 2:  # Ensure we have both frequency and SPL values
+                if len(values) == 2:
                     data_lines.append(values)
 
-        # Create DataFrame
         df = pd.DataFrame(data_lines, columns=['freq', 'value'])
-        
-        # Convert to numeric values
         df['freq'] = pd.to_numeric(df['freq'], errors='coerce')
         df['value'] = pd.to_numeric(df['value'], errors='coerce')
-        
-        # Remove any rows with NaN values
         df = df.dropna()
-        
-        # Sort by frequency
         df = df.sort_values(by='freq')
-        
-        # Convert to numpy arrays
+
         freq_array = df['freq'].to_numpy()
         value_array = df['value'].to_numpy()
-        
+
         if len(freq_array) == 0 or len(value_array) == 0:
             raise ValueError("Empty data after processing")
-            
+
         return freq_array, value_array
     except Exception as e:
         st.error(f"Error loading file: {str(e)}")
         return None, None
-    
+
+def smooth_measurement(freq, value, points_per_octave=12):
+    num_points = len(freq)
+    if num_points < 10:
+        return value
+
+    log_freq = np.log10(freq)
+    interp = interp1d(log_freq, value, kind='linear', fill_value='extrapolate')
+    log_uniform = np.linspace(log_freq[0], log_freq[-1], num_points)
+    value_uniform = interp(log_uniform)
+
+    window_len = max(5, int(num_points / points_per_octave) | 1)
+    smoothed = savgol_filter(value_uniform, window_length=window_len, polyorder=2)
+
+    interp_back = interp1d(log_uniform, smoothed, kind='linear', fill_value='extrapolate')
+    return interp_back(np.log10(freq))
+
 def apply_filters(freq, filters):
     total = np.zeros_like(freq)
     for f in filters:
@@ -181,21 +184,22 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
 
     # Initial filters
     initial_filters = [
-        50, 3, 0.7,     # Bass peak
-        80, 4, 0.7,     # Bass shelf
-        1500, 2, 0.8,   # Pinna peak 1
-        3000, 2, 0.8,   # Pinna peak 2
-        4500, 5, 1.2    # Treble shelf
+        50, 3, 0.7,      # Bass peak 1
+        150, 2, 0.7,     # Bass peak 2
+        80, 4, 0.7,      # Bass shelf
+        1500, 2, 0.8,    # Pinna peak 1
+        2750, 2, 0.8,    # Pinna peak 2
+        4500, 5, 1.2     # Treble shelf
     ]
 
     bounds = [
-        (20, 100), (-30, 30), (Q_MIN, Q_MAX),     # Bass peak
-        (20, 200), (-30, 30), (Q_MIN, Q_MAX),     # Bass shelf
-        (1000, 2000), (-5, 5), (0.2, 3),        # Pinna peak 1
-        (2000, 3000), (-5, 5), (0.2, 3),        # Pinna peak 2
-        (4500, 20000), (-8, 8), (Q_MIN, Q_MAX)    # Treble shelf
+        (20, 20), (-30, 30), (0.2, 3),     # Bass peak 1
+        (100, 300), (-30, 30), (0.2, 3),    # Bass peak 2
+        (20, 250), (-30, 30), (0.2, 3),     # Bass shelf
+        (1000, 2000), (-30, 30), (1, 3),          # Pinna peak 1
+        (2500, 3000), (-30, 30), (1, 3),          # Pinna peak 2
+        (4000, 20000), (-30, 30), (0.5, 1.5)    # Treble shelf
     ]
-
     # Optimize filters
     result = minimize(loss, initial_filters, bounds=bounds, method="L-BFGS-B")
 
@@ -294,6 +298,13 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
     normalized_baseline = baseline - baseline_ref
     normalized_adjusted_target = adjusted_target - adjusted_ref
     
+    # Define BA bass compensation filter - corrected to use low shelf
+    ba_filter = {'type': 'shelf', 'fc': 100.0, 'gain': 1.2, 'Q': 0.6}
+    
+    # Function for low shelf filter (since it's not in the main functions)
+    def low_shelf(f, fc, gain_db, Q):
+        return gain_db / (1 + (f / fc)**(2 * Q))
+    
     # Get the target type label for plot titles and labels
     target_label = "JM-1" if target_type == "jm1" else "Diffuse Field"
     
@@ -303,7 +314,7 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12))
         
         # First plot: Original Rig Target
-        ax1.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement")
+        ax1.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/12 Octave)")
         ax1.semilogx(freq, normalized_baseline, color='#AAAAAA', linestyle='--', linewidth=2, label=f"{target_label} Target")
         ax1.semilogx(freq, normalized_adjusted_target, color='#000000', linewidth=2.5, label=f"Adjusted {target_label} Target")
         
@@ -318,22 +329,28 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
         ax1.set_xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000])
         ax1.set_xticklabels(['20', '50', '100', '200', '500', '1k', '2k', '5k', '10k', '20k'])
         
-        # Second plot: Cross-Rig Targets
+        # Second plot: Cross-Rig Targets with BA compensation
         for rig, (target, label_prefix) in additional_targets.items():
-            # Normalize cross-rig target
+            # Apply adjusted filters to target
             cross_target = target + apply_filters(freq, adjusted_filters)
             
-            # Find reference values at 630 Hz for both original and filtered targets
+            # Create BA compensated version (using low shelf filter)
+            ba_compensated_target = cross_target + low_shelf(freq, ba_filter['fc'], ba_filter['gain'], ba_filter['Q'])
+            
+            # Find reference values at 630 Hz for normalization
             cross_ref = target[ref_idx]
             filtered_cross_ref = cross_target[ref_idx]
+            ba_cross_ref = ba_compensated_target[ref_idx]
             
-            # Normalize both original and filtered cross-rig targets
+            # Normalize all targets
             normalized_original_cross = target - cross_ref
             normalized_cross_target = cross_target - filtered_cross_ref
+            normalized_ba_target = ba_compensated_target - ba_cross_ref
             
             # Plot cross-rig curves
             ax2.semilogx(freq, normalized_original_cross, color='#AAAAAA', linestyle='--', linewidth=2, label=f"{label_prefix} {rig} Target")
             ax2.semilogx(freq, normalized_cross_target, color='#000000', linewidth=2.5, label=f"Adjusted {label_prefix} {rig} Target")
+            ax2.semilogx(freq, normalized_ba_target, color='#FF5733', linewidth=2.5, linestyle='-.', label=f"Adjusted {label_prefix} {rig} (with BA Bass Compensation)")
             
             # Set plot properties for second plot
             ax2.set_title(f"Filters Applied to {rig} {label_prefix} Target (Normalized at {REF_FREQ_HZ} Hz)", fontweight='bold')
@@ -353,7 +370,7 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
         fig, ax = plt.subplots(figsize=(12, 8))
         
         # Plot curves
-        ax.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement")
+        ax.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/12 Octave)")
         ax.semilogx(freq, normalized_baseline, color='#AAAAAA', linestyle='--', linewidth=2, label=f"{target_label} {rig_type} Target")
         ax.semilogx(freq, normalized_adjusted_target, color='#000000', linewidth=2.5, label=f"Adjusted {target_label} Target")
         
@@ -376,17 +393,22 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
     
     # Export options
     if rig_type == "5128":
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
-            # Export Filters
+            # Export Filters as plain text
+            filter_text = "# Unsquigger EQ Filters\n"
+            filter_text += "# Frequency (Hz) | Gain (dB) | Q | Type\n"
+            filter_text += "-" * 50 + "\n"
+
+            for i, f in enumerate(adjusted_filters, 1):
+                filter_text += f"Filter {i}: {f['fc']:.1f} Hz | {f['gain']:.1f} dB | Q: {f['Q']:.2f} | {f['type']}\n"
+
             if st.download_button(
                 label="Export EQ Filters",
-                data=json.dumps([EQFilter(**f) for f in adjusted_filters], 
-                                default=lambda o: asdict(o), 
-                                indent=2),
-                file_name="eq_filters.json",
-                mime="application/json"
+                data=filter_text,
+                file_name="eq_filters.txt",
+                mime="text/plain"
             ):
                 st.success("EQ Filters exported!")
         
@@ -429,19 +451,39 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
                     mime="text/tab-separated-values"
                 ):
                     st.success(f"Adjusted {rig} {label_prefix} Target exported!")
+        
+        with col5:
+            # Export BA Compensated Adjusted Cross-Rig Targets
+            for rig, (target, label_prefix) in additional_targets.items():
+                cross_target = target + apply_filters(freq, adjusted_filters)
+                ba_compensated_target = cross_target + low_shelf(freq, ba_filter['fc'], ba_filter['gain'], ba_filter['Q'])
+                ba_cross_df = pd.DataFrame({"Frequency (Hz)": freq, "Target (dB)": ba_compensated_target})
+                ba_cross_csv = ba_cross_df.to_csv(sep='\t', index=False)
+                if st.download_button(
+                    label=f"Export Adjusted {rig} {label_prefix} + BA Bass Comp",
+                    data=ba_cross_csv,
+                    file_name=f"{rig}_{target_type}_adjusted_ba_target.txt",
+                    mime="text/tab-separated-values"
+                ):
+                    st.success(f"Adjusted {rig} {label_prefix} + BA Bass Comp Target exported!")
     
     else:  # 711 rig
         col1, col2 = st.columns(2)
         
         with col1:
-            # Export Filters
+            # Export Filters as plain text
+            filter_text = "# Unsquigger EQ Filters\n"
+            filter_text += "# Frequency (Hz) | Gain (dB) | Q | Type\n"
+            filter_text += "-" * 50 + "\n"
+
+            for i, f in enumerate(adjusted_filters, 1):
+                filter_text += f"Filter {i}: {f['fc']:.1f} Hz | {f['gain']:.1f} dB | Q: {f['Q']:.2f} | {f['type']}\n"
+
             if st.download_button(
                 label="Export EQ Filters",
-                data=json.dumps([EQFilter(**f) for f in adjusted_filters], 
-                                default=lambda o: asdict(o), 
-                                indent=2),
-                file_name="eq_filters.json",
-                mime="application/json"
+                data=filter_text,
+                file_name="eq_filters.txt",
+                mime="text/plain"
             ):
                 st.success("EQ Filters exported!")
         
@@ -511,24 +553,23 @@ if uploaded_file is not None:
             baseline_freq, baseline_val = load_txt(f)
         
         if baseline_freq is not None:
-            # Generate target
+            meas_val_smoothed = smooth_measurement(meas_freq, meas_val, points_per_octave=12)
+
             filters, freq, target, meas, baseline = generate_target(
-                meas_freq, meas_val, baseline_freq, baseline_val, rig_type
+                meas_freq, meas_val_smoothed, baseline_freq, baseline_val, rig_type
             )
-            
-            # Create plot
-            fig, ax = plt.subplots(figsize=(12, 8))
 
-            # Find reference values for normalization
+            # Normalize the generated target to match baseline at 630 Hz
             ref_idx = np.abs(freq - REF_FREQ_HZ).argmin()
+            target_ref = target[ref_idx]
             baseline_ref = baseline[ref_idx]
-            meas_ref = meas[ref_idx]  # Get measurement reference at 630 Hz
+            target = target - (target_ref - baseline_ref)
 
-            # Normalize measurement to baseline at reference frequency
+            fig, ax = plt.subplots(figsize=(12, 8))
+            meas_ref = meas[ref_idx]
             meas_normalized = meas - (meas_ref - baseline_ref)
 
-            # Plot curves - use normalized measurement instead of raw measurement
-            ax.semilogx(freq, meas_normalized, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement")
+            ax.semilogx(freq, meas_normalized, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/12 Octave)")
             ax.semilogx(freq, baseline, color='#AAAAAA', linestyle='--', linewidth=2, label=f"{target_label} Baseline")
             ax.semilogx(freq, target, color='#000000', linewidth=2.5, label=f"Generated {target_label} Target")
             
