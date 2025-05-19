@@ -192,7 +192,7 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     ]
 
     bounds = [
-        (20, 20), (-30, 30), (0.2, 5),     # Bass peak 1
+        (20, 20), (-30, 30), (0.2, 6),     # Bass peak 1
         (20, 500), (-30, 30), (0.2, 1),     # Low shelf
         (1250, 2000), (-30, 30), (.5, 3),          # Pinna peak 1
         (2000, 4000), (-30, 30), (.5, 3),          # Pinna peak 2
@@ -247,7 +247,7 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
             
             q = st.number_input(f"Q {i+1}", 
                                 min_value=0.2, 
-                                max_value=3.0, 
+                                max_value=6.0, 
                                 value=filt['Q'],
                                 step=0.1,
                                 key=f"Q_{i}")
