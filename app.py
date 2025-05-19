@@ -301,7 +301,7 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
     # Define BA bass compensation filter - corrected to use low shelf
     ba_filter = {'type': 'shelf', 'fc': 100.0, 'gain': 1.2, 'Q': 0.6}
     
-    # Function for low shelf filter (since it's not in the main functions)
+    # Function for low shelf filter
     def low_shelf(f, fc, gain_db, Q):
         return gain_db / (1 + (f / fc)**(2 * Q))
     
