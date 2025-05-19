@@ -74,7 +74,7 @@ def load_txt(uploaded_file):
         st.error(f"Error loading file: {str(e)}")
         return None, None
 
-def smooth_measurement(freq, value, points_per_octave=12):
+def smooth_measurement(freq, value, points_per_octave=24):
     num_points = len(freq)
     if num_points < 10:
         return value
@@ -185,19 +185,17 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     # Initial filters
     initial_filters = [
         50, 3, 0.7,      # Bass peak 1
-        150, 2, 0.7,     # Bass peak 2
         80, 4, 0.7,      # Bass shelf
         1500, 2, 0.8,    # Pinna peak 1
-        2750, 2, 0.8,    # Pinna peak 2
+        3000, 2, 0.8,    # Pinna peak 2
         4500, 5, 1.2     # Treble shelf
     ]
 
     bounds = [
         (20, 20), (-30, 30), (0.2, 3),     # Bass peak 1
-        (100, 300), (-30, 30), (0.2, 3),    # Bass peak 2
-        (20, 250), (-30, 30), (0.2, 3),     # Bass shelf
-        (1000, 2000), (-30, 30), (1, 3),          # Pinna peak 1
-        (2500, 3000), (-30, 30), (0.5, 3),          # Pinna peak 2
+        (20, 500), (-30, 30), (0.2, 3),     # Low shelf
+        (1000, 2000), (-30, 30), (.5, 3),          # Pinna peak 1
+        (2000, 4000), (-30, 30), (.5, 3),          # Pinna peak 2
         (4000, 20000), (-30, 30), (0.2, 1.5)    # Treble shelf
     ]
     # Optimize filters
@@ -314,7 +312,7 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12))
         
         # First plot: Original Rig Target
-        ax1.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/12 Octave)")
+        ax1.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/24 Octave)")
         ax1.semilogx(freq, normalized_baseline, color='#AAAAAA', linestyle='--', linewidth=2, label=f"{target_label} Target")
         ax1.semilogx(freq, normalized_adjusted_target, color='#000000', linewidth=2.5, label=f"Adjusted {target_label} Target")
         
@@ -370,7 +368,7 @@ def dynamic_eq_adjustment(st, filters, freq, baseline, meas, rig_type, target_ty
         fig, ax = plt.subplots(figsize=(12, 8))
         
         # Plot curves
-        ax.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/12 Octave)")
+        ax.semilogx(freq, normalized_meas, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/24 Octave)")
         ax.semilogx(freq, normalized_baseline, color='#AAAAAA', linestyle='--', linewidth=2, label=f"{target_label} {rig_type} Target")
         ax.semilogx(freq, normalized_adjusted_target, color='#000000', linewidth=2.5, label=f"Adjusted {target_label} Target")
         
@@ -553,7 +551,7 @@ if uploaded_file is not None:
             baseline_freq, baseline_val = load_txt(f)
         
         if baseline_freq is not None:
-            meas_val_smoothed = smooth_measurement(meas_freq, meas_val, points_per_octave=12)
+            meas_val_smoothed = smooth_measurement(meas_freq, meas_val, points_per_octave=24)
 
             filters, freq, target, meas, baseline = generate_target(
                 meas_freq, meas_val_smoothed, baseline_freq, baseline_val, rig_type
@@ -569,7 +567,7 @@ if uploaded_file is not None:
             meas_ref = meas[ref_idx]
             meas_normalized = meas - (meas_ref - baseline_ref)
 
-            ax.semilogx(freq, meas_normalized, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/12 Octave)")
+            ax.semilogx(freq, meas_normalized, color='#888888', alpha=0.6, linewidth=1.5, label="Measurement (1/24 Octave)")
             ax.semilogx(freq, baseline, color='#AAAAAA', linestyle='--', linewidth=2, label=f"{target_label} Baseline")
             ax.semilogx(freq, target, color='#000000', linewidth=2.5, label=f"Generated {target_label} Target")
             
