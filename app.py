@@ -197,8 +197,8 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
         (100, 300), (-30, 30), (0.2, 3),    # Bass peak 2
         (20, 250), (-30, 30), (0.2, 3),     # Bass shelf
         (1000, 2000), (-30, 30), (1, 3),          # Pinna peak 1
-        (2500, 3000), (-30, 30), (1, 3),          # Pinna peak 2
-        (4000, 20000), (-30, 30), (0.5, 1.5)    # Treble shelf
+        (2500, 3000), (-30, 30), (0.5, 3),          # Pinna peak 2
+        (4000, 20000), (-30, 30), (0.2, 1.5)    # Treble shelf
     ]
     # Optimize filters
     result = minimize(loss, initial_filters, bounds=bounds, method="L-BFGS-B")
@@ -582,6 +582,7 @@ if uploaded_file is not None:
             
             # Set axis limits
             ax.set_xlim(20, 20000)
+            ax.set_ylim(-20, 20)
             ax.set_xticks([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000])
             ax.set_xticklabels(['20', '50', '100', '200', '500', '1k', '2k', '5k', '10k', '20k'])
             
