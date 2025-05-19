@@ -200,7 +200,9 @@ def generate_target(meas_freq, meas_val, jm1_freq, jm1_val, rig_type="5128"):
     ]
 
     # Optimize filters
-    result = minimize(loss, initial_filters, bounds=bounds, method="L-BFGS-B")
+    np.random.seed(42)
+    result = minimize(loss, initial_filters, bounds=bounds, method="L-BFGS-B", 
+         options={'ftol': 1e-8, 'gtol': 1e-8, 'maxiter': 500})
 
     # Create filters from optimized parameters
     filters = [
